@@ -1,21 +1,20 @@
 package com.sousa.batch.job;
 
-import javax.sql.DataSource;
-
+import jakarta.persistence.EntityManagerFactory; // Importação correta para Spring Boot 3+
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.lang.NonNull;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
-import org.springframework.batch.item.database.JdbcBatchItemWriter;
-import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
+import org.springframework.batch.item.database.JpaItemWriter;
+import org.springframework.batch.item.database.builder.JpaItemWriterBuilder;
 
 import com.sousa.batch.model.Person;
 import com.sousa.batch.processor.PersonItemProcessor;
@@ -28,7 +27,7 @@ public class PersonJobConfig {
         return new FlatFileItemReaderBuilder<Person>()
             .name("personItemReader")
             .resource(new ClassPathResource("pessoas.csv"))
-            .linesToSkip(1) //avança o cabeçalho    
+            .linesToSkip(1)
             .delimited()
             .names("nome", "email", "idade")
             .targetType(Person.class)
@@ -41,20 +40,18 @@ public class PersonJobConfig {
     }
 
     @Bean
-    public JdbcBatchItemWriter<Person> writer(DataSource dataSource) {
-        return new JdbcBatchItemWriterBuilder<Person>()
-            .itemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>())
-            .sql("INSERT INTO person (nome, email, idade) VALUES (:nome, :email, :idade)")
-            .dataSource(dataSource)
+    public JpaItemWriter<Person> writer(@NonNull EntityManagerFactory entityManagerFactory) {
+        return new JpaItemWriterBuilder<Person>()
+            .entityManagerFactory(entityManagerFactory)
             .build();
     }
 
     @Bean
-    public Step step(JobRepository jobRepository,
-                     PlatformTransactionManager transactionManager,
-                     FlatFileItemReader<Person> reader,
-                     PersonItemProcessor processor,
-                     JdbcBatchItemWriter<Person> writer) {
+    public Step step(@NonNull JobRepository jobRepository,
+                     @NonNull  PlatformTransactionManager transactionManager,
+                     @NonNull  FlatFileItemReader<Person> reader,
+                     @NonNull  PersonItemProcessor processor,
+                     @NonNull  JpaItemWriter<Person> writer) { // Parâmetro atualizado
         return new StepBuilder("step", jobRepository)
             .<Person, Person>chunk(10, transactionManager)
             .reader(reader)
@@ -64,10 +61,10 @@ public class PersonJobConfig {
     }
 
     @Bean
-    public Job importUserJob(JobRepository jobRepository, Step step) {
+    public Job importUserJob(@NonNull JobRepository jobRepository, @NonNull Step step) {
         return new JobBuilder("importUserJob", jobRepository)
             .start(step)
             .build();
     }
-    
+
 }
